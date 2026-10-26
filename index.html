@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>きろくアプリ</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #1d1c1a;
+      --surface: #2a2926;
+      --border: #3d3b37;
+      --text: #d9d4cb;
+      --muted: #8f8a80;
+      --accent: #5b8f78;
+      --accent-text: #f0ede6;
+    }
+    body {
+      font-family: sans-serif;
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    h1 { font-size: 22px; font-weight: normal; margin: 8px 0 16px; }
+    h2 { font-size: 16px; font-weight: normal; color: var(--muted); margin: 24px 0 8px; }
+    textarea {
+      width: 100%;
+      height: 140px;
+      padding: 12px;
+      font-size: 16px;
+      color: var(--text);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-sizing: border-box;
+    }
+    textarea::placeholder { color: var(--muted); }
+        button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 14px;
+      font-size: 16px;
+      color: var(--accent-text);
+      background: var(--accent);
+      border: none;
+      border-radius: 8px;
+    }
+    input[type=range] { width: 100%; accent-color: var(--accent); }
+    nav { display: flex; gap: 8px; margin-bottom: 16px; }
+    nav button { flex: 1; margin-top: 0; padding: 12px 0; font-size: 15px; background: var(--surface); color: var(--muted); }
+    nav button.active { background: var(--accent); color: var(--accent-text); }
+    .screen { display: none; }
+    .screen.active { display: block; }
+    .tip { background: var(--surface); border: 1px solid var(--border); color: var(--text); text-align: left; margin-top: 8px; }
+    .chip { width: auto; margin: 6px 6px 0 0; padding: 8px 14px; font-size: 15px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 20px; }
+    .chip.selected { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+    #tags { margin-bottom: 12px; }
+    #winEntry { margin-top: 16px; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+    .meta { color: var(--muted); font-size: 13px; }
+    a.del { color: var(--muted); font-size: 13px; margin-left: 8px; }
+    .empty { color: var(--muted); font-size: 14px; }
+     #summary { margin-bottom: 8px; }
+    .chart { display: flex; gap: 6px; align-items: flex-end; height: 80px; margin-bottom: 4px; }
+    .col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+    .bar { width: 100%; border-radius: 4px 4px 0 0; }
+    .labels { display: flex; gap: 6px; margin-bottom: 8px; }
+    .labels span { flex: 1; text-align: center; font-size: 12px; color: var(--muted); }
+    .sub { background: var(--surface); color: var(--text); border: 1px solid var(--border); margin-top: 8px; }
+    .tip small { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+</style>
+</head>
+<body>
+  <nav>
+    <button id="tabLog" class="active">きろく</button>
+    <button id="tabWin">せいこう</button>
+    <button id="tabHist">みちのり</button>
+  </nav>
+
+  <div id="logScreen" class="screen active">
+    <h1>きろく</h1>
+    <div id="tags"></div>
+    <textarea id="entry" placeholder="今日の記録"></textarea>
+    <p>気持ちの大きさ：<span id="envyVal">0</span></p>
+    <input type="range" id="envy" min="0" max="5" value="0">
+    <button id="saveBtn">保存する</button>
+  </div>
+
+  <div id="winScreen" class="screen">
+    <h1>できたこと</h1>
+    <p class="meta">今日できそうな小さなこと（タップすると入力欄に入ります）</p>
+    <div id="tips"></div>
+    <textarea id="winEntry" placeholder="今日できたこと"></textarea>
+    <button id="winSaveBtn">保存する</button>
+  </div>
+
+  <div id="histScreen" class="screen">
+    <h1>みちのり</h1>
+        <div id="summary"></div>
+    <div id="week"></div>
+    <h2>きろく</h2>
+    <ul id="list"></ul>
+    <h2>できたこと</h2>
+    <ul id="winList"></ul>
+        <h2>バックアップ</h2>
+    <button id="exportBtn" class="sub">記録をファイルに書き出す</button>
+    <button id="importBtn" class="sub">ファイルから読み込む</button>
+    <input type="file" id="importFile" accept=".json" style="display:none">
+  </div>
+    <script>
+    // ---------- 画面の切り替え ----------
+    const screens = {
+      log: document.getElementById('logScreen'),
+      win: document.getElementById('winScreen'),
+      hist: document.getElementById('histScreen')
+    };
+    const tabs = {
+      log: document.getElementById('tabLog'),
+      win: document.getElementById('tabWin'),
+      hist: document.getElementById('tabHist')
+    };
+    function show(name) {
+      Object.keys(screens).forEach(function (k) {
+        screens[k].classList.toggle('active', k === name);
+        tabs[k].classList.toggle('active', k === name);
+      });
+      if (name === 'hist') renderHistory();
+      if (name === 'win') renderTips();
+    }
+    Object.keys(tabs).forEach(function (k) {
+      tabs[k].addEventListener('click', function () { show(k); });
+    });
+
+    // ---------- データ ----------
+    let records = JSON.parse(localStorage.getItem('records') || '[]');
+    let wins = JSON.parse(localStorage.getItem('wins') || '[]');
+
+    // ---------- きろく ----------
+    const entry = document.getElementById('entry');
+    const saveBtn = document.getElementById('saveBtn');
+    const envy = document.getElementById('envy');
+    const envyVal = document.getElementById('envyVal');
+    const tagsBox = document.getElementById('tags');
+
+    envy.addEventListener('input', function () {
+      envyVal.textContent = envy.value;
+    });
+
+    const words = ['うらやましい', 'さみしい', '焦る', '疲れた', '不安', 'イライラ'];
+    let selectedWord = '';
+    words.forEach(function (w) {
+      const b = document.createElement('button');
+      b.className = 'chip';
+      b.textContent = w;
+      b.addEventListener('click', function () {
+        selectedWord = (selectedWord === w) ? '' : w;
+        document.querySelectorAll('.chip').forEach(function (c) {
+          c.classList.toggle('selected', c.textContent === selectedWord);
+        });
+      });
+      tagsBox.appendChild(b);
+    });
+
+    saveBtn.addEventListener('click', function () {
+      const text = entry.value.trim();
+      if (text === '' && selectedWord === '') return;
+      records.push({ text: text, word: selectedWord, date: new Date().toLocaleString('ja-JP'), envy: Number(envy.value) });
+      localStorage.setItem('records', JSON.stringify(records));
+      entry.value = '';
+      envy.value = 0;
+      envyVal.textContent = 0;
+      selectedWord = '';
+      document.querySelectorAll('.chip').forEach(function (c) { c.classList.remove('selected'); });
+      saveBtn.textContent = '保存しました';
+      setTimeout(function () { saveBtn.textContent = '保存する'; }, 1200);
+    });
+        // ---------- せいこう ----------
+    const winEntry = document.getElementById('winEntry');
+    const winSaveBtn = document.getElementById('winSaveBtn');
+    const tips = document.getElementById('tips');
+    function recentRecords(days) {
+      const keys = [];
+      for (let d = 0; d < days; d++) keys.push(dayKey(d));
+      return records.filter(function (r) { return keys.includes(r.date.split(' ')[0]); });
+    }
+
+    function countWord(arr, w) {
+      return arr.filter(function (r) { return r.word === w; }).length;
+    }
+
+    function buildSuggestions() {
+      const rec = recentRecords(7);
+      const result = [];
+      function add(text, reason) {
+        if (result.length < 4 && !result.some(function (x) { return x.text === text; })) {
+          result.push({ text: text, reason: reason });
+        }
+      }
+
+      // 夜中（0〜4時）の記録が多い
+      const nightCount = rec.filter(function (r) {
+        const h = parseInt(r.date.split(' ')[1], 10);
+        return h >= 0 && h < 5;
+      }).length;
+      if (nightCount >= 2) add('寝る前の10分、スマホを別の場所に置いた', '夜中の記録が' + nightCount + '件あります');
+
+      // 同じ言葉が続いている
+      const wordRules = [
+        { word: 'うらやましい', text: '今日の自分ができたことを1つ書いた' },
+        { word: 'さみしい', text: '好きな音楽を1曲聞いた' },
+        { word: '疲れた', text: '10分だけ横になって休んだ' },
+        { word: '焦る', text: '今やることを1つだけ書き出した' },
+        { word: '不安', text: '今やることを1つだけ書き出した' },
+        { word: 'イライラ', text: '深呼吸を5回した' }
+      ];
+      wordRules.forEach(function (rule) {
+        const n = countWord(rec, rule.word);
+        if (n >= 2) add(rule.text, '「' + rule.word + '」が' + n + '回あります');
+      });
+
+      // 気持ちの大きさが高い記録が多い
+      const high = rec.filter(function (r) { return (r.envy ?? 0) >= 4; }).length;
+      if (high >= 2) add('10分だけ外を歩いた', '気持ちの大きさが高い記録が' + high + '件あります');
+
+      // ここ3日、できたことがない
+      const last3 = [dayKey(0), dayKey(1), dayKey(2)];
+      const recentWins = wins.filter(function (w) { return last3.includes(w.date.split(' ')[0]); }).length;
+      if (recentWins === 0) add('コップ1杯の水を飲んだ', 'ここ3日、できたことの記録がありません');
+
+      // 足りない分は、いつもの提案で埋める
+      add('温かい飲み物を入れて飲んだ', '');
+      add('10分だけ外を歩いた', '');
+      add('今日あったよかったことを1つ書いた', '');
+      add('スマホを置いて目を閉じて休んだ', '');
+      return result;
+    }
+
+    function renderTips() {
+      tips.innerHTML = '';
+      buildSuggestions().forEach(function (s) {
+        const b = document.createElement('button');
+        b.className = 'tip';
+        b.textContent = s.text;
+        if (s.reason) {
+          const small = document.createElement('small');
+          small.textContent = s.reason;
+          b.appendChild(small);
+        }
+        b.addEventListener('click', function () { winEntry.value = s.text; });
+        tips.appendChild(b);
+      });
+    }
+    
+
+    winSaveBtn.addEventListener('click', function () {
+      const text = winEntry.value.trim();
+      if (text === '') return;
+      wins.push({ text: text, date: new Date().toLocaleString('ja-JP') });
+      localStorage.setItem('wins', JSON.stringify(wins));
+      winEntry.value = '';
+      winSaveBtn.textContent = '保存しました';
+      setTimeout(function () { winSaveBtn.textContent = '保存する'; }, 1200);
+    });
+
+    // ---------- 一覧 ----------
+    const list = document.getElementById('list');
+    const winList = document.getElementById('winList');
+
+    function makeItem(label, meta, onDelete) {
+      const li = document.createElement('li');
+      const m = document.createElement('div');
+      m.className = 'meta';
+      m.textContent = meta;
+      const t = document.createElement('div');
+      t.textContent = label;
+      const del = document.createElement('a');
+      del.className = 'del';
+      del.textContent = '消す';
+      del.href = '#';
+      del.addEventListener('click', function (e) {
+        e.preventDefault();
+        if (confirm('この記録を消しますか？')) onDelete();
+      });
+      m.appendChild(del);
+      li.appendChild(m);
+      li.appendChild(t);
+      return li;
+    }
+
+        function dayKey(offset) {
+      return new Date(Date.now() - offset * 86400000).toLocaleDateString('ja-JP');
+    }
+
+    function renderSummary() {
+      const today = dayKey(0);
+      const days = [];
+      for (let d = 6; d >= 0; d--) {
+        const key = dayKey(d);
+        const dayWins = wins.filter(function (w) { return w.date.split(' ')[0] === key; }).length;
+        const dayEnvy = records
+          .filter(function (r) { return r.date.split(' ')[0] === key; })
+          .reduce(function (m, r) { return Math.max(m, r.envy ?? 0); }, 0);
+        days.push({ label: key.split('/').slice(1).join('/'), wins: dayWins, envy: dayEnvy });
+      }
+
+      const todayWins = wins.filter(function (w) { return w.date.split(' ')[0] === today; }).length;
+      const weekWins = days.reduce(function (s, x) { return s + x.wins; }, 0);
+      document.getElementById('summary').textContent =
+        '今日できたこと：' + todayWins + '　／　7日間：' + weekWins;
+
+      const week = document.getElementById('week');
+      week.innerHTML = '';
+      const charts = [
+        { title: 'できたこと', key: 'wins', max: Math.max(3, ...days.map(function (x) { return x.wins; })), color: 'var(--accent)' },
+        { title: '気持ちの大きさ（その日の最大）', key: 'envy', max: 5, color: '#a0856a' }
+      ];
+      charts.forEach(function (c) {
+        const h = document.createElement('h2');
+        h.textContent = c.title;
+        const chart = document.createElement('div');
+        chart.className = 'chart';
+        const labels = document.createElement('div');
+        labels.className = 'labels';
+        days.forEach(function (x) {
+          const col = document.createElement('div');
+          col.className = 'col';
+          const bar = document.createElement('div');
+          bar.className = 'bar';
+          bar.style.background = c.color;
+          bar.style.height = Math.max((x[c.key] / c.max) * 64, 3) + 'px';
+          col.appendChild(bar);
+          chart.appendChild(col);
+          const l = document.createElement('span');
+          l.textContent = x.label;
+          labels.appendChild(l);
+        });
+        week.appendChild(h);
+        week.appendChild(chart);
+        week.appendChild(labels);
+      });
+    }
+    function renderHistory() {
+         renderSummary();
+      list.innerHTML = '';
+      winList.innerHTML = '';
+
+      if (records.length === 0) {
+        list.innerHTML = '<li class="empty">まだありません</li>';
+      }
+      for (let i = records.length - 1; i >= 0; i--) {
+        (function (i) {
+          const r = records[i];
+          const label = (r.word ? '【' + r.word + '】' : '') + r.text;
+          const meta = r.date + '　★' + (r.envy ?? 0);
+          list.appendChild(makeItem(label, meta, function () {
+            records.splice(i, 1);
+            localStorage.setItem('records', JSON.stringify(records));
+            renderHistory();
+          }));
+        })(i);
+      }
+
+      if (wins.length === 0) {
+        winList.innerHTML = '<li class="empty">まだありません</li>';
+      }
+      for (let j = wins.length - 1; j >= 0; j--) {
+        (function (j) {
+          const w = wins[j];
+          winList.appendChild(makeItem(w.text, w.date, function () {
+            wins.splice(j, 1);
+            localStorage.setItem('wins', JSON.stringify(wins));
+            renderHistory();
+          }));
+        })(j);
+      }
+    }
+        // ---------- バックアップ ----------
+    document.getElementById('exportBtn').addEventListener('click', function () {
+      const data = JSON.stringify({ records: records, wins: wins }, null, 2);
+      const blob = new Blob([data], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'kiroku-backup-' + new Date().toISOString().slice(0, 10) + '.json';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+
+    const importFile = document.getElementById('importFile');
+    document.getElementById('importBtn').addEventListener('click', function () {
+      importFile.click();
+    });
+    importFile.addEventListener('change', function () {
+      const file = importFile.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function () {
+        try {
+          const d = JSON.parse(reader.result);
+          if (!Array.isArray(d.records) || !Array.isArray(d.wins)) throw new Error('形式が違います');
+          if (!confirm('今の記録をこのファイルの内容に置き換えます。よろしいですか？')) return;
+          records = d.records;
+          wins = d.wins;
+          localStorage.setItem('records', JSON.stringify(records));
+          localStorage.setItem('wins', JSON.stringify(wins));
+          renderHistory();
+        } catch (e) {
+          alert('読み込めませんでした。書き出したファイルか確認してください。');
+        }
+        importFile.value = '';
+      };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
